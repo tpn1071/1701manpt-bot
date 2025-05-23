@@ -49,19 +49,17 @@ class GPTKeyManager:
     def request_chat_completion(self, messages, **kwargs):
         retries = 0
         while retries < len(self.api_keys):
-            openai.api_key = self.get_current_key()
+            api_key = self.get_current_key()
+            client = openai.OpenAI(api_key=api_key)
             try:
-                return openai.ChatCompletion.create(
+                response = client.chat.completions.create(
                     model=GPT_MODEL,
                     messages=messages,
                     **kwargs
                 )
-            except openai.error.RateLimitError as e:
-                print(f"⛔ Rate limit: {e}")
-            except openai.error.AuthenticationError as e:
-                print(f"❌ Authentication lỗi: {e}")
-            except openai.error.InvalidRequestError as e:
-                print(f"⚠️ Invalid Request: {e}")
+                return response
+            except openai.OpenAIError as e:
+                print(f"⛔ OpenAI error: {e}")
             except Exception as e:
                 print(f"⚠️ Lỗi khác: {e}")
 
@@ -134,7 +132,7 @@ async def respond_to_message(message: discord.Message):
     )
 
     if response:
-        reply = response["choices"][0]["message"]["content"].strip()
+        reply = response.choices[0].message.content.strip()
         await message.channel.send(reply)
 
         # Log lại cả câu hỏi và câu trả lời
