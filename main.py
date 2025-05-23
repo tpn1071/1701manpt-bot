@@ -33,15 +33,22 @@ async def send_count_message():
     if channel:
         await channel.send(str(counter))
 
+online_members = set()  # Lưu user_id của các thành viên đang online
+
 @tasks.loop(seconds=5)
 async def check_online_members():
     guild = client.guilds[0] if client.guilds else None
     channel = client.get_channel(CHANNEL_ID)
     if guild and channel:
+        current_online = set()
         for member in guild.members:
             if member.status == discord.Status.online and not member.bot:
-                await channel.send(f"Hello @{member.display_name}")
-                break  # Chỉ gửi 1 lần cho 1 thành viên online đầu tiên
+                current_online.add(member.id)
+                if member.id not in online_members:
+                    await channel.send(f"Hello @{member.display_name}")
+        # Cập nhật lại trạng thái online
+        online_members.clear()
+        online_members.update(current_online)
 
 @app.route('/')
 def home():
