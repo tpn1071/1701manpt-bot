@@ -7,12 +7,15 @@ from discord.ext import commands, tasks
 from threading import Thread
 from flask import Flask
 import time
-from gpt_chat import ask_gpt
+import openai
 
 # ==================== CẤU HÌNH ====================
-DISCORD_BOT_TOKEN = os.getenv('DISCORD_BOT_TOKEN')  # Lấy token từ biến môi trường
+DISCORD_BOT_TOKEN = os.getenv('DISCORD_BOT_TOKEN')
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+openai.api_key = OPENAI_API_KEY
 
-CHANNEL_ID = 1375358813586329693  # Thay bằng ID kênh bạn muốn gửi tin nhắn
+TARGET_CHANNEL_ID = 1375358813586329693  # Thay bằng ID kênh bạn muốn bot trả lời
+CHANNEL_ID = 1375358813586329693        # Kênh dùng cho các task khác nếu cần
 # ==================================================
 
 intents = discord.Intents.default()
@@ -24,8 +27,8 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 app = Flask(__name__)
 
-counter = 0  # Đếm số lần đã gửi tin nhắn
-online_members = set()  # Lưu user_id của các thành viên đang online
+counter = 0
+online_members = set()
 
 def run_flask():
     app.run(host="0.0.0.0", port=8080)
@@ -45,14 +48,30 @@ async def on_ready():
 # === Sự kiện on_message ===
 @bot.event
 async def on_message(message):
-    print(f"[on_message] Nhận tin nhắn từ {message.author}: {message.content}")
-    # Nếu bot bị tag
-    if bot.user.mention in message.content and not message.author.bot:
-        prompt = message.content.replace(bot.user.mention, "").strip()
-        if prompt:
-            await message.channel.typing()
-            reply = ask_gpt(prompt)
-            await message.channel.send(reply)
+    if message.author.bot:
+        return
+
+    if message.channel.id != TARGET_CHANNEL_ID:
+        return
+
+    user_input = message.content.strip()
+
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",  # hoặc "gpt-4" nếu tài khoản có quyền
+            messages=[
+                {"role": "user", "content": user_input}
+            ],
+            temperature=0.7,
+            max_tokens=1000
+        )
+
+        reply = response.choices[0].message.content
+        await message.channel.send(reply)
+
+    except Exception as e:
+        await message.channel.send(f"Đã xảy ra lỗi khi gọi GPT: {str(e)}")
+
     await bot.process_commands(message)
 
 # === Task gửi số đếm mỗi 60s ===
@@ -79,7 +98,6 @@ async def check_online_members():
                 if member.id not in online_members:
                     print(f"[check_online_members] Hello @{member.display_name}")
                     await channel.send(f"Hello @{member.display_name}")
-        # Cập nhật lại trạng thái online
         online_members.clear()
         online_members.update(current_online)
 
