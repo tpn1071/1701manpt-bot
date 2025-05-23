@@ -17,6 +17,7 @@ GPT_API_KEYS = [
     value for key, value in os.environ.items()
     if key.startswith("GPT_API_KEY_") and value
 ]
+print(f"[INIT] Loaded {len(GPT_API_KEYS)} GPT API keys.")
 
 HISTORY_CHANNEL_NAME = "log-chat"  # Kênh lưu lịch sử hội thoại
 GPT_MODEL = "gpt-4"
@@ -32,7 +33,7 @@ class GPTKeyManager:
 
     def rotate_key(self):
         self.current_index = (self.current_index + 1) % len(self.api_keys)
-        print(f"🔁 Đang chuyển sang API key thứ {self.current_index + 1}")
+        print(f"[GPTKeyManager] 🔁 Đang chuyển sang API key thứ {self.current_index + 1}")
 
     def get_current_key(self):
         return self.api_keys[self.current_index]
@@ -41,15 +42,18 @@ class GPTKeyManager:
         return len(self.failed_keys) >= len(self.api_keys)
 
     def mark_failed(self):
+        print(f"[GPTKeyManager] ❌ Key failed: {self.get_current_key()}")
         self.failed_keys.add(self.get_current_key())
 
     def reset_failed(self):
+        print("[GPTKeyManager] 🔄 Reset danh sách key lỗi.")
         self.failed_keys.clear()
 
     def request_chat_completion(self, messages, **kwargs):
         retries = 0
         while retries < len(self.api_keys):
             api_key = self.get_current_key()
+            print(f"[GPTKeyManager] 🟢 Dùng API key thứ {self.current_index + 1} để gọi GPT.")
             client = openai.OpenAI(api_key=api_key)
             try:
                 response = client.chat.completions.create(
@@ -57,18 +61,19 @@ class GPTKeyManager:
                     messages=messages,
                     **kwargs
                 )
+                print("[GPTKeyManager] ✅ Nhận được phản hồi từ GPT.")
                 return response
             except openai.OpenAIError as e:
-                print(f"⛔ OpenAI error: {e}")
+                print(f"[GPTKeyManager] ⛔ OpenAI error: {e}")
             except Exception as e:
-                print(f"⚠️ Lỗi khác: {e}")
+                print(f"[GPTKeyManager] ⚠️ Lỗi khác: {e}")
 
             self.mark_failed()
             self.rotate_key()
             retries += 1
             time.sleep(1)
 
-        print("🛑 Hết lượt ở tất cả API key. Tạm dừng.")
+        print("[GPTKeyManager] 🛑 Hết lượt ở tất cả API key. Tạm dừng.")
         return None
 
 # === Thiết lập bot Discord ===
@@ -91,12 +96,15 @@ def run_flask():
 
 @app.route('/')
 def home():
+    print("[Flask] / endpoint được gọi.")
     return "Bot is running!", 200
 
 # === Lấy lịch sử chat từ kênh log ===
 async def get_chat_history(guild: discord.Guild, limit=15):
+    print(f"[get_chat_history] Lấy lịch sử chat từ kênh {HISTORY_CHANNEL_NAME} (guild: {guild.name})")
     history_channel = discord.utils.get(guild.text_channels, name=HISTORY_CHANNEL_NAME)
     if not history_channel:
+        print("[get_chat_history] Không tìm thấy kênh log-chat.")
         return []
 
     messages = [msg async for msg in history_channel.history(limit=limit)]
@@ -104,6 +112,7 @@ async def get_chat_history(guild: discord.Guild, limit=15):
         {"role": "user" if m.author != bot.user else "assistant", "content": m.content}
         for m in reversed(messages)
     ]
+    print(f"[get_chat_history] Đã lấy {len(history)} tin nhắn lịch sử.")
     return history
 
 # === Lưu tin nhắn vào kênh log ===
@@ -112,6 +121,7 @@ async def log_message(guild: discord.Guild, message: discord.Message, override_c
     if log_channel:
         content = override_content if override_content else message.content
         author = "Bot" if message.author == bot.user else message.author.display_name
+        print(f"[log_message] Ghi log: {author}: {content}")
         await log_channel.send(f"{author}: {content}")
 
 # === Phản hồi tin nhắn với GPT ===
@@ -121,6 +131,8 @@ async def respond_to_message(message: discord.Message):
 
     if bot.user.mention not in message.content:
         return
+
+    print(f"[respond_to_message] Nhận tin nhắn từ {message.author}: {message.content}")
 
     chat_history = await get_chat_history(message.guild, limit=15)
     chat_history.append({"role": "user", "content": message.content})
@@ -133,24 +145,27 @@ async def respond_to_message(message: discord.Message):
 
     if response:
         reply = response.choices[0].message.content.strip()
+        print(f"[respond_to_message] Trả lời: {reply}")
         await message.channel.send(reply)
 
         # Log lại cả câu hỏi và câu trả lời
         await log_message(message.guild, message)
         await log_message(message.guild, message, override_content=reply)
     else:
+        print("[respond_to_message] Hết lượt API, gửi thông báo cho user.")
         await message.channel.send("🤖 Bot tạm nghỉ do hết lượt API. Vui lòng thử lại sau!")
 
 # === Sự kiện on_ready ===
 @bot.event
 async def on_ready():
-    print(f'Logged in as {bot.user}')
+    print(f"[Discord] Logged in as {bot.user}")
     send_count_message.start()
     check_online_members.start()
 
 # === Sự kiện on_message ===
 @bot.event
 async def on_message(message):
+    print(f"[on_message] Nhận tin nhắn từ {message.author}: {message.content}")
     await respond_to_message(message)
     await bot.process_commands(message)
 
@@ -161,6 +176,7 @@ async def send_count_message():
     counter += 1
     channel = bot.get_channel(CHANNEL_ID)
     if channel:
+        print(f"[send_count_message] Gửi số đếm: {counter}")
         await channel.send(str(counter))
 
 # === Task kiểm tra thành viên online mỗi 5s ===
@@ -175,12 +191,14 @@ async def check_online_members():
             if member.status == discord.Status.online and not member.bot:
                 current_online.add(member.id)
                 if member.id not in online_members:
+                    print(f"[check_online_members] Hello @{member.display_name}")
                     await channel.send(f"Hello @{member.display_name}")
         # Cập nhật lại trạng thái online
         online_members.clear()
         online_members.update(current_online)
 
 if __name__ == "__main__":
+    print("[MAIN] Khởi động Flask và Discord bot...")
     Thread(target=run_flask).start()
     print("🤖 Đang khởi động bot...")
     bot.run(DISCORD_BOT_TOKEN)
