@@ -57,8 +57,9 @@ async def on_message(message):
     user_input = message.content.strip()
 
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # hoặc "gpt-4" nếu tài khoản có quyền
+        client = openai.OpenAI(api_key=OPENAI_API_KEY)
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
             messages=[
                 {"role": "user", "content": user_input}
             ],
