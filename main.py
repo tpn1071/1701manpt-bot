@@ -7,12 +7,9 @@ from discord.ext import commands, tasks
 from threading import Thread
 from flask import Flask
 import time
-import openai
 
 # ==================== CẤU HÌNH ====================
 DISCORD_BOT_TOKEN = os.getenv('DISCORD_BOT_TOKEN')
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-openai.api_key = OPENAI_API_KEY
 
 TARGET_CHANNEL_ID = 1375358813586329693  # Thay bằng ID kênh bạn muốn bot trả lời
 CHANNEL_ID = 1375358813586329693        # Kênh dùng cho các task khác nếu cần
@@ -54,25 +51,7 @@ async def on_message(message):
     if message.channel.id != TARGET_CHANNEL_ID:
         return
 
-    user_input = message.content.strip()
-
-    try:
-        client = openai.OpenAI(api_key=OPENAI_API_KEY)
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "user", "content": user_input}
-            ],
-            temperature=0.7,
-            max_tokens=1000
-        )
-
-        reply = response.choices[0].message.content
-        await message.channel.send(reply)
-
-    except Exception as e:
-        await message.channel.send(f"Đã xảy ra lỗi khi gọi GPT: {str(e)}")
-
+    # Không còn xử lý chatgpt, chỉ xử lý lệnh nếu có
     await bot.process_commands(message)
 
 # === Task gửi số đếm mỗi 60s ===
