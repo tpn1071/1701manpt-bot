@@ -20,7 +20,7 @@ GPT_API_KEYS = [
 print(f"[INIT] Loaded {len(GPT_API_KEYS)} GPT API keys.")
 
 HISTORY_CHANNEL_NAME = "log-chat"  # Kênh lưu lịch sử hội thoại
-GPT_MODEL = "gpt-4"
+GPT_MODEL = "gpt-3.5-turbo"
 CHANNEL_ID = 1375358813586329693  # Thay bằng ID kênh bạn muốn gửi tin nhắn
 # ==================================================
 
