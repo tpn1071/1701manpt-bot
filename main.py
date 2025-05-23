@@ -25,7 +25,7 @@ async def on_ready():
     send_count_message.start()
     check_online_members.start()
 
-@tasks.loop(minutes=5)
+@tasks.loop(seconds=60)
 async def send_count_message():
     global counter
     counter += 1
@@ -33,7 +33,7 @@ async def send_count_message():
     if channel:
         await channel.send(str(counter))
 
-@tasks.loop(minutes=1)
+@tasks.loop(seconds=5)
 async def check_online_members():
     guild = client.guilds[0] if client.guilds else None
     channel = client.get_channel(CHANNEL_ID)
